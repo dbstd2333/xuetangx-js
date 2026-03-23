@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         学堂在线视频自动学习面板脚本
 // @namespace    http://tampermonkey.net/
-// @version      1.6.2
+// @version      1.7.0
 // @license      MIT
-// @description  为学堂在线(xuetangx.com/learn/)提供一个操作面板，只播放左侧“饼图未满”的章节；自动 2.0 倍速、静音、循环播放，直到饼图满再跳下一节。
+// @description  为学堂在线(xuetangx.com/learn/)提供一个操作面板，只播放左侧"饼图未满"的章节；自动 2.0 倍速、静音、循环播放，直到饼图满再跳下一节。
 // @author       Yangkunlong + ChatGPT
 // @match        *://www.xuetangx.com/learn/*
 // @grant        none
@@ -13,23 +13,17 @@
 (function() {
     'use strict';
 
-    // --- 全局变量 ---
-    var index = 0;                  // 当前正在播放的章节索引（对应 lists 的下标）
-    var runIt;                      // 定时器
-    var lists;                      // 左侧章节列表（class="third"）
-    var dragElement;                // 操作面板 DOM
-    var replayCountMap = {};        // 每节的重播次数，防止死循环
-    var isCheckingProgress = false; // 防止重复触发当前节的进度检查
-    var pendingCheckIndex = null;   // 记录哪一节需要在切章后检查饼图
-    var isRefreshingPie = false;    // 正在“切章刷新饼图”的过程中，避免重复触发
+    var index = 0;
+    var runIt;
+    var lists;
+    var dragElement;
+    var replayCountMap = {};
+    var isCheckingProgress = false;
+    var pendingCheckIndex = null;
+    var isRefreshingPie = false;
+    var videoSwitchRetryCount = 0;
 
-    // --- UI/操作面板 相关函数 ---
-
-    /**
-     * 构建操作面板的HTML和CSS，并使其可拖动
-     */
     function createPanel() {
-        // CSS 样式
         const panelStyle = `
             #gemini-automation-panel {
                 position: fixed;
@@ -62,13 +56,11 @@
             }
         `;
 
-        // 插入 CSS
         const styleSheet = document.createElement("style");
         styleSheet.type = "text/css";
         styleSheet.innerText = panelStyle;
         document.head.appendChild(styleSheet);
 
-        // HTML 结构
         const panelHTML = `
             <div id="gemini-panel-header">
                 🚀 学堂在线自动学习面板
@@ -105,33 +97,47 @@
 
         return panel;
     }
-        /**
-     * 判断某个章节是不是“作业/习题”等非视频单元
-     * 依据：
-     *   - li 里是否存在 span.titlespan.noScore
-     *   - 文本里是否包含“习题”等关键字（防御性补刀）
-     */
-     function isHomeworkChapter(listElement) {
-        if (!listElement) return false;
 
-        var li = listElement.querySelector("li");
-        if (!li) return false;
+    function isHomeworkChapter(menuContentItem) {
+        if (!menuContentItem) return false;
 
-        // 只看 span.titlespan.noScore
-        var span = li.querySelector("span.titlespan.noScore");
-        if (!span) return false;
+        var itemType = menuContentItem.querySelector(".item-type");
+        if (!itemType) return false;
 
-        var text = (span.innerText || "").trim();
+        var text = (itemType.innerText || "").trim();
         if (!text) return false;
 
-        // 只在这个 span 文本里找关键字
         return /习题|作业|练习|测验|考试|homework|quiz|exercise/i.test(text);
     }
 
+    function isVideoChapter(menuContentItem) {
+        if (!menuContentItem) return false;
 
-    /**
-     * 将状态信息输出到面板上的状态框
-     */
+        var itemType = menuContentItem.querySelector(".item-type");
+        if (!itemType) return false;
+
+        var text = (itemType.innerText || "").trim();
+        return text === "视频";
+    }
+
+    function isChapterFinished(menuContentItem) {
+        if (!menuContentItem) return false;
+        return menuContentItem.querySelector(".is-finish") !== null;
+    }
+
+    function clickMarkAsFinishedButton() {
+        var buttons = document.querySelectorAll('button[class*="buttonhoverblank"]');
+        for (var i = 0; i < buttons.length; i++) {
+            if (buttons[i].innerText && buttons[i].innerText.includes("看完")) {
+                console.log("找到'标记看完'按钮，点击它");
+                logStatus("图文课程：点击'标记看完'按钮");
+                buttons[i].click();
+                return true;
+            }
+        }
+        return false;
+    }
+
     function logStatus(msg) {
         var box = document.getElementById("gemini-status");
         if (!box) return;
@@ -148,9 +154,6 @@
         box.scrollTop = box.scrollHeight;
     }
 
-    /**
-     * 实现面板拖动功能
-     */
     function makeDraggable(element) {
         var header = document.getElementById("gemini-panel-header");
         var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
@@ -185,19 +188,16 @@
         }
     }
 
-    /**
-     * 面板：只把“饼图未满”的章节放进下拉框
-     */
     function populatePanel() {
         try {
-            lists = document.getElementsByClassName("third");
+            lists = document.querySelectorAll(".menu-content-item");
 
             const videoCountSpan = document.getElementById("video-count");
             const startSelect = document.getElementById("start-select");
             const startButton = document.getElementById("start-automation");
 
             if (lists.length === 0) {
-                videoCountSpan.innerText = "0 (未找到章节，请检查类名 'third')";
+                videoCountSpan.innerText = "0 (未找到章节，请检查类名 'menu-content-item')";
                 logStatus("未找到任何章节元素，可能页面结构有变化。");
                 startSelect.innerHTML = '<option value="-1">未找到视频列表</option>';
                 startButton.disabled = true;
@@ -208,32 +208,30 @@
             let unfinishedCount = 0;
 
             for (let i = 0; i < lists.length; i++) {
-                const temp = lists[i].getElementsByTagName("li");
-                if (temp.length === 0) continue;
-                const li = temp[0];
+                const item = lists[i];
 
-                // 有 .percentFull 说明饼图已满，直接跳过
-                const fullIcon = li.querySelector(".percentFull");
-                if (fullIcon) {
+                if (isChapterFinished(item)) {
                     continue;
                 }
-                // 作业/习题：用 DOM 标记过滤掉
-                if (isHomeworkChapter(lists[i])) {
-                    // 可选：logStatus("过滤作业章节 #" + i);
+
+                if (isHomeworkChapter(item)) {
                     continue;
                 }
 
                 unfinishedCount++;
 
                 let titleText = "无法获取标题";
-                const titleSpan = li.getElementsByTagName("span");
-                if (titleSpan.length > 0) {
-                    titleText = titleSpan[0].innerText.trim();
+                const itemName = item.querySelector(".item-name");
+                if (itemName) {
+                    titleText = itemName.innerText.trim();
                 }
 
+                const itemType = item.querySelector(".item-type");
+                const typeText = itemType ? itemType.innerText.trim() : "未知";
+
                 const option = document.createElement("option");
-                option.value = i; // 直接保存原始索引
-                option.innerText = `[#${i}] ${titleText}`;
+                option.value = i;
+                option.innerText = `[#${i}] [${typeText}] ${titleText}`;
                 startSelect.appendChild(option);
             }
 
@@ -249,7 +247,6 @@
                 startButton.disabled = false;
             }
 
-            // 绑定开始按钮事件
             startButton.onclick = function() {
                 const selectedValue = startSelect.value;
                 const selectedIndex = parseInt(selectedValue, 10);
@@ -270,31 +267,21 @@
         }
     }
 
-    // --- 播放列表：只在“饼图未满”的章节之间跳转 ---
-
-    /**
-     * 从指定起点之后，找到下一个饼图未满的章节索引
-     * @param {number} startIndex - 从哪个索引之后开始找（一般是当前 index）
-     * @returns {number} - 下一未完成章节索引；找不到则返回 -1
-     */
     function findNextUnfinished(startIndex) {
-        lists = document.getElementsByClassName("third");
+        lists = document.querySelectorAll(".menu-content-item");
         for (let i = startIndex + 1; i < lists.length; i++) {
-            const temp = lists[i].getElementsByTagName("li");
-            if (temp.length === 0) continue;
-            const li = temp[0];
-            const fullIcon = li.querySelector(".percentFull");
-            if (!fullIcon) {
-                return i;
+            const item = lists[i];
+            if (isChapterFinished(item)) {
+                continue;
             }
+            if (isHomeworkChapter(item)) {
+                continue;
+            }
+            return i;
         }
         return -1;
     }
 
-    /**
-     * 跳转到下一个饼图未满的章节；如果没有，就结束脚本
-     * @param {number} currentIndex - 当前章节索引
-     */
     function gotoNextUnfinished(currentIndex) {
         const nextIdx = findNextUnfinished(currentIndex);
         if (nextIdx === -1) {
@@ -307,14 +294,8 @@
         startNum(nextIdx);
     }
 
-    // --- 核心自动化逻辑函数 ---
-
-    /**
-     * 根据索引启动某个章节的播放 (模拟点击)
-     * @param {number} num - 章节索引
-     */
-        function startNum(num) {
-        lists = document.getElementsByClassName("third");
+    function startNum(num) {
+        lists = document.querySelectorAll(".menu-content-item");
 
         if (num >= lists.length) {
             console.log("索引超出范围，尝试结束。");
@@ -325,66 +306,74 @@
         }
 
         index = num;
-        var currentList = lists[index];
-        var temp = currentList.getElementsByTagName("li");
+        var currentItem = lists[index];
 
-        if (temp.length === 0) {
-            console.log("章节 #" + index + " 中未找到 'li' 元素。尝试跳过。");
-            logStatus("章节 #" + index + " 没有有效视频节点，跳到下一个未完成章节。");
-            gotoNextUnfinished(index);
-            return;
-        }
-
-        var li = temp[0];
-
-        // 1. 作业/习题：直接跳过（你前面已经有 isHomeworkChapter 的话可以用它）
-        if (typeof isHomeworkChapter === "function" && isHomeworkChapter(currentList)) {
+        if (isHomeworkChapter(currentItem)) {
             logStatus("章节 #" + index + " 是作业/习题，自动跳过。");
             gotoNextUnfinished(index);
             return;
         }
 
-        // 2. 饼图已经满：不用再刷，跳下一个
-        var fullIcon = li.querySelector(".percentFull");
-        if (fullIcon) {
+        if (isChapterFinished(currentItem)) {
             logStatus("章节 #" + index + " 饼图已经满了，自动跳到下一个未完成章节。");
             gotoNextUnfinished(index);
             return;
         }
 
-        // 3. 真的需要刷这节 → 点击进入，开始自动播放
-        li.click();
+        var itemName = currentItem.querySelector(".item-name");
+        var titleText = itemName ? itemName.innerText.trim() : "无标题";
+        var itemType = currentItem.querySelector(".item-type");
+        var typeText = itemType ? itemType.innerText.trim() : "未知";
 
-        var titleSpan = li.getElementsByTagName("span");
-        var titleText = titleSpan.length > 0 ? titleSpan[0].innerText.trim() : "无标题";
+        console.log("当前章节编号：" + index + ", 类型：" + typeText + ", 标题：" + titleText);
+        logStatus("正在处理章节 #" + index + " - [" + typeText + "] " + titleText);
 
-        console.log("当前章节编号：" + index + ", 章节标题：" + titleText);
-        logStatus("正在播放章节 #" + index + " - " + titleText);
+        currentItem.click();
 
-        start();  // 开启 5 秒轮询
+        start();
     }
 
-
-    /**
-     * 开始/设置定时器检查进度
-     */
     function start() {
         console.log("播放检查/启动----");
         window.clearInterval(runIt);
-        runIt = setInterval(next, 5000); // 每5秒检查一次
+        runIt = setInterval(next, 5000);
     }
 
-        /**
-     * 定时器触发函数：检查播放进度，进行下一节跳转
-     */
-        function next() {
+    function next() {
         var videos = document.getElementsByClassName("xt_video_player");
         var video = videos.length > 0 ? videos[0] : undefined;
 
-        // --- 当前不是视频：当作作业/讨论，直接跳下一节 ---
         if (video === undefined) {
-            console.log("未找到视频播放器，可能是作业/讨论，跳转下一个未完成章节。");
-            logStatus("当前章节不是视频（可能是作业/讨论），跳到下一个未完成章节。");
+            var versionSwitch = document.querySelector('.version-switch');
+            if (versionSwitch && videoSwitchRetryCount < 3) {
+                videoSwitchRetryCount++;
+                console.log("未找到视频播放器，尝试点击旧版切换按钮 (重试次数:" + videoSwitchRetryCount + ")...");
+                logStatus("未找到视频播放器，点击旧版切换按钮 (重试次数:" + videoSwitchRetryCount + ")...");
+                versionSwitch.click();
+                setTimeout(function() {
+                    var videosRetry = document.getElementsByClassName("xt_video_player");
+                    var videoRetry = videosRetry.length > 0 ? videosRetry[0] : undefined;
+                    if (videoRetry !== undefined) {
+                        videoSwitchRetryCount = 0;
+                        console.log("切换旧版后成功找到视频播放器。");
+                        logStatus("切换到旧版后找到视频，继续播放。");
+                        next();
+                        return;
+                    }
+                }, 1500);
+                return;
+            }
+            videoSwitchRetryCount = 0;
+
+            if (clickMarkAsFinishedButton()) {
+                setTimeout(function() {
+                    checkProgressAndMaybeGotoNext();
+                }, 2000);
+                return;
+            }
+
+            console.log("未找到视频播放器，可能是作业/讨论/图文，跳转下一个未完成章节。");
+            logStatus("当前章节不是视频（可能是作业/讨论/图文），跳到下一个未完成章节。");
             gotoNextUnfinished(index);
             return;
         }
@@ -404,7 +393,6 @@
             return;
         }
 
-        // 保证 2 倍速 & 静音
         speed(video);
         soundClose();
 
@@ -427,7 +415,6 @@
         var percentText = (ratio * 100).toFixed(2) + "%";
         var remain = d - c;
 
-        // ✅ 关键点：只要这一遍“看完了”，就触发刷新饼图的流程
         if (video.ended || remain <= 1.0) {
             if (isRefreshingPie) return;
 
@@ -441,16 +428,11 @@
             return;
         }
 
-        // 否则就是正常播放中，什么都不做
         console.log("视频正在播放中... 进度: " + percentText);
     }
 
-
-    /**
-     * 为了刷新当前章节的饼图：临时切换到别的章节
-     */
     function switchChapterForPieRefresh() {
-        lists = document.getElementsByClassName("third");
+        lists = document.querySelectorAll(".menu-content-item");
 
         var jumpIndex = -1;
         if (lists.length > 1) {
@@ -462,36 +444,26 @@
         }
 
         if (jumpIndex === -1) {
-            // 只有一节课，没得切章，那就直接按原逻辑检查
             logStatus("只有一个章节，无法切章刷新饼图，直接检查当前章节饼图。");
-            checkProgressAndMaybeGotoNext(null); // video 可选
+            checkProgressAndMaybeGotoNext();
             return;
         }
 
-        var list = lists[jumpIndex];
-        var lis = list.getElementsByTagName("li");
-        if (lis.length > 0) {
-            lis[0].click();
-            console.log("为刷新饼图，临时切到章节 #" + jumpIndex);
-            logStatus("为刷新饼图，暂时切到章节 #" + jumpIndex + "。");
-        }
+        var item = lists[jumpIndex];
+        item.click();
+        console.log("为刷新饼图，临时切到章节 #" + jumpIndex);
+        logStatus("为刷新饼图，暂时切到章节 #" + jumpIndex + "。");
 
-        // 给后台一点时间刷新进度，之后再去检查 pendingCheckIndex 那节的饼图
         setTimeout(function() {
-            checkProgressAndMaybeGotoNext(null);  // 之后统一在这里决定是重播还是下一节
+            checkProgressAndMaybeGotoNext();
         }, 5000);
     }
 
-    /**
-     * 在“切到其它章节刷新饼图”之后，检查 pendingCheckIndex 那节的饼图
-     * 如果饼图满 → 跳到下一未完成章节
-     * 如果没满   → 切回去重播 pendingCheckIndex
-     */
     var MAX_REPLAY_PER_CHAPTER = 20;
 
     function checkProgressAndMaybeGotoNext() {
         isCheckingProgress = false;
-        lists = document.getElementsByClassName("third");
+        lists = document.querySelectorAll(".menu-content-item");
 
         if (pendingCheckIndex == null) {
             isRefreshingPie = false;
@@ -500,9 +472,9 @@
         }
 
         var idx = pendingCheckIndex;
-        var currentList = lists[idx];
+        var currentItem = lists[idx];
 
-        if (!currentList) {
+        if (!currentItem) {
             console.log("找不到 pending 章节节点，跳到下一个未完成章节。");
             logStatus("找不到 pending 章节节点，跳到下一个未完成章节。");
             isRefreshingPie = false;
@@ -511,21 +483,7 @@
             return;
         }
 
-        var lis = currentList.getElementsByTagName("li");
-        if (lis.length === 0) {
-            console.log("pending 章节没有 li，跳到下一个未完成章节。");
-            logStatus("pending 章节没有 li，跳到下一个未完成章节。");
-            isRefreshingPie = false;
-            pendingCheckIndex = null;
-            gotoNextUnfinished(idx);
-            return;
-        }
-
-        var currentLi = lis[0];
-        var fullIcon = currentLi.querySelector(".percentFull");
-
-        // ✅ 饼图满了：这一节彻底搞定，跳到下一个未完成视频
-        if (fullIcon) {
+        if (isChapterFinished(currentItem)) {
             console.log("检测到章节 #" + idx + " 饼图已满，跳到下一个未完成章节。");
             logStatus("章节 #" + idx + " 饼图已满，开始下一节未完成视频。");
             replayCountMap[idx] = 0;
@@ -535,14 +493,12 @@
             return;
         }
 
-        // ❌ 饼图没满：这一节需要再看一遍
         replayCountMap[idx] = (replayCountMap[idx] || 0) + 1;
         var times = replayCountMap[idx];
 
         console.log("章节 #" + idx + " 饼图仍未满，第 " + times + " 次重播。");
         logStatus("章节 #" + idx + " 饼图仍未满，第 " + times + " 次重播。");
 
-        // 防止真的无限死循环（比如这节是互动题/课件，永远不会满）
         if (times >= MAX_REPLAY_PER_CHAPTER) {
             console.log("本章节重播超过 " + MAX_REPLAY_PER_CHAPTER + " 次仍未满，跳到下一个未完成章节。");
             logStatus("章节 #" + idx + " 看了 " + MAX_REPLAY_PER_CHAPTER +
@@ -553,31 +509,26 @@
             return;
         }
 
-        // 重新回到这一节，从头播放
         index = idx;
         pendingCheckIndex = null;
         isRefreshingPie = false;
 
-        currentLi.click();  // 再次进入该章节
+        currentItem.click();
 
         setTimeout(function() {
             var videos = document.getElementsByClassName("xt_video_player");
             var v = videos.length > 0 ? videos[0] : null;
             if (v) {
-                v.currentTime = 0;   // ✅ 硬从 0 开始看一遍
+                v.currentTime = 0;
                 v.play().catch(function(err) {
                     console.log("重播当前视频失败：", err.name);
                     logStatus("重播当前视频失败，可能需要你手动点一下播放。");
                 });
             }
-            start(); // 重新启动定时检查
+            start();
         }, 1000);
     }
 
-
-    /**
-     * 关闭视频声音 (通过点击 UI 按钮)
-     */
     function soundClose() {
         var mutedIcon = document.getElementsByClassName("xt_video_player_common_icon_muted");
         if (mutedIcon.length === 0) {
@@ -589,17 +540,12 @@
         }
     }
 
-    /**
-     * 设置播放速度为2.0 (直接操作 video 元素)
-     */
     function speed(video) {
         if (video && video.playbackRate !== 2.0) {
             video.playbackRate = 2.0;
             console.log("设置播放速度为 2.0 倍。");
         }
     }
-
-    // --- 脚本启动入口 ---
 
     function main() {
         console.log("油猴脚本已启动，开始加载操作面板...");
