@@ -213,21 +213,13 @@ var XuetangXAutoLearn = (() => {
     var videos = document.getElementsByClassName("xt_video_player");
     return videos.length > 0 ? videos[0] : void 0;
   }
-  function simulateClick(element) {
-    var evt = new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      view: window
-    });
-    element.dispatchEvent(evt);
-  }
   function clickMarkAsFinishedButton() {
     var buttons = document.querySelectorAll('button[class*="buttonhoverblank"]');
     for (var i = 0; i < buttons.length; i++) {
       if (buttons[i].innerText && buttons[i].innerText.includes("\u770B\u5B8C")) {
         console.log("\u627E\u5230'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE\uFF0C\u70B9\u51FB\u5B83");
         logStatus("\u56FE\u6587\u8BFE\u7A0B\uFF1A\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE");
-        simulateClick(buttons[i]);
+        buttons[i].click();
         return true;
       }
     }
@@ -388,9 +380,8 @@ var XuetangXAutoLearn = (() => {
         console.log("\u5F53\u524D\u4E3A\u56FE\u6587\u7AE0\u8282\uFF0C\u76F4\u63A5\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE");
         logStatus("\u5F53\u524D\u4E3A\u56FE\u6587\u7AE0\u8282\uFF0C\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE");
         if (clickMarkAsFinishedButton()) {
-          pendingCheckIndex = index;
           setTimeout(function() {
-            checkProgressAndMaybeGotoNext();
+            gotoNextUnfinished(index);
           }, 2e3);
           return;
         }

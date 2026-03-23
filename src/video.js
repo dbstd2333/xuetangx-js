@@ -5,22 +5,13 @@ export function findVideoPlayer() {
     return videos.length > 0 ? videos[0] : undefined;
 }
 
-function simulateClick(element) {
-    var evt = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-        view: window
-    });
-    element.dispatchEvent(evt);
-}
-
 export function clickMarkAsFinishedButton() {
     var buttons = document.querySelectorAll('button[class*="buttonhoverblank"]');
     for (var i = 0; i < buttons.length; i++) {
         if (buttons[i].innerText && buttons[i].innerText.includes("看完")) {
             console.log("找到'标记看完'按钮，点击它");
             logStatus("图文课程：点击'标记看完'按钮");
-            simulateClick(buttons[i]);
+            buttons[i].click();
             return true;
         }
     }
