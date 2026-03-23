@@ -1,9 +1,9 @@
 import { SCRIPT_METADATA, MAX_REPLAY_PER_CHAPTER, CHECK_INTERVAL_MS, PANEL_INIT_DELAY_MS, PANEL_POPULATE_DELAY_MS, PIE_REFRESH_DELAY_MS, VIDEO_REPLAY_DELAY_MS } from './constants.js';
 import { logStatus } from './utils.js';
 import { createPanel } from './panel.js';
-import { isHomeworkChapter, isChapterFinished, getChapterTitle, getChapterType, getAllChapters, isImageTextChapter, isDiscussionChapter } from './chapters.js';
+import { isChapterFinished, getChapterTitle, getChapterType, getAllChapters, isImageTextChapter, isDiscussionChapter, shouldSkipChapter } from './chapters.js';
 import { findVideoPlayer, findMarkAsFinishedButton, soundClose, setSpeed, playVideo, isVideoValid } from './video.js';
-import { findNextUnfinished } from './navigation.js';
+import { findNextUnfinished, findRefreshJumpChapter } from './navigation.js';
 import { startMarkAsFinishedFlow, resetMarkAsFinishedFlow } from './mark-finished.js';
 import { hasDiscussionComposer, startDiscussionFlow, resetDiscussionFlow } from './discussion.js';
 let index = 0;
@@ -32,8 +32,7 @@ export function populatePanel() {
         for (let i = 0; i < lists.length; i++) {
             const item = lists[i];
 
-            if (isChapterFinished(item)) continue;
-            if (isHomeworkChapter(item)) continue;
+            if (shouldSkipChapter(item)) continue;
 
             unfinishedCount++;
 
@@ -49,9 +48,9 @@ export function populatePanel() {
         logStatus("当前未完成章节数：" + unfinishedCount + "。");
 
         if (unfinishedCount === 0) {
-            startSelect.innerHTML = '<option value="-1">没有未完成的章节</option>';
+            startSelect.innerHTML = '<option value="-1">没有可自动学习的章节</option>';
             startButton.disabled = true;
-            logStatus("所有章节饼图都已满，无需自动学习。");
+            logStatus("所有可自动学习章节都已处理完毕，无需自动学习。");
             return;
         } else {
             startButton.disabled = false;
@@ -105,7 +104,7 @@ function startNum(num) {
     resetDiscussionFlow();
     const currentItem = lists[index];
 
-    if (isHomeworkChapter(currentItem) || isChapterFinished(currentItem)) {
+    if (shouldSkipChapter(currentItem)) {
         gotoNextUnfinished(index);
         return;
     }
@@ -197,18 +196,10 @@ function next() {
 }
 function switchChapterForPieRefresh() {
     lists = getAllChapters();
-
-    var jumpIndex = -1;
-    if (lists.length > 1) {
-        if (index + 1 < lists.length) {
-            jumpIndex = index + 1;
-        } else if (index - 1 >= 0) {
-            jumpIndex = index - 1;
-        }
-    }
+    const jumpIndex = findRefreshJumpChapter(index);
 
     if (jumpIndex === -1) {
-        logStatus("只有一个章节，无法切章刷新饼图，直接检查当前章节饼图。");
+        logStatus("没有可用于刷新饼图的临时章节，直接检查当前章节饼图。");
         checkProgressAndMaybeGotoNext();
         return;
     }

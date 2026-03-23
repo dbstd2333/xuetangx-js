@@ -43,16 +43,16 @@ export function createPanel() {
             🚀 学堂在线自动学习面板
         </div>
         <div style="padding: 10px;">
-            <p><strong>未完成章节数: </strong><span id="video-count">加载中...</span></p>
+            <p><strong>可自动学习章节数: </strong><span id="video-count">加载中...</span></p>
             <div style="margin-bottom: 15px; margin-top: 10px;">
-                <label for="start-select" style="display: block; font-weight: bold;">选择起始章节（仅显示饼图未满）:</label>
+                <label for="start-select" style="display: block; font-weight: bold;">选择起始章节（仅显示可自动学习章节）:</label>
                 <select id="start-select" style="width: 100%; padding: 7px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"></select>
             </div>
             <button id="start-automation" style="width: 100%; padding: 10px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
                 ▶️ 从所选章节开始自动学习
             </button>
             <p style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
-                * 只播放饼图未满的章节；讨论题会自动填入“课程很棒！”并提交；自动 2.0 倍速、静音，每 5 秒检查进度，饼图未满会自动重播本节。
+                * 只播放饼图未满且非 [音频] 的章节；讨论题会自动填入“课程很棒！”并提交；自动 2.0 倍速、静音，每 5 秒检查进度，饼图未满会自动重播本节。
             </p>
 
             <div id="gemini-status"

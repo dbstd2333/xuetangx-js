@@ -40,6 +40,21 @@ export function isDiscussionChapter(menuContentItem) {
     return /讨论|discussion/i.test(typeText) || /讨论|discussion/i.test(titleText);
 }
 
+// 标题或类型中包含 [音频]/音频 标记时，自动跳过该章节。
+export function isAudioChapter(menuContentItem) {
+    if (!menuContentItem) return false;
+
+    const titleText = getChapterTitle(menuContentItem);
+    const typeText = getChapterType(menuContentItem);
+
+    return titleText.includes('[音频]') || typeText === '音频';
+}
+
+// 统一判断章节是否需要跳过，供面板筛选和顺序跳转复用。
+export function shouldSkipChapter(menuContentItem) {
+    return isChapterFinished(menuContentItem) || isHomeworkChapter(menuContentItem) || isAudioChapter(menuContentItem);
+}
+
 export function isChapterFinished(menuContentItem) {
     if (!menuContentItem) return false;
     return menuContentItem.querySelector(".is-finish") !== null;

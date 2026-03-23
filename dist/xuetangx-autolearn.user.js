@@ -3,7 +3,7 @@
 // @namespace        http://tampermonkey.net/
 // @version          1.8.0
 // @license          MIT
-// @description      为学堂在线(xuetangx.com/learn/)提供一个操作面板，只播放左侧"饼图未满"的章节；对讨论题会自动填入“课程很棒！”并提交；自动 2.0 倍速、静音、循环播放，直到饼图满再跳下一节。
+// @description      为学堂在线(xuetangx.com/learn/)提供一个操作面板，只播放左侧"饼图未满"的章节，并自动跳过标题中包含 [音频] 的章节；对讨论题会自动填入“课程很棒！”并提交；自动 2.0 倍速、静音、循环播放，直到饼图满再跳下一节。
 // @author           Yangkunlong + ChatGPT + qinxurui
 // @match            *://www.xuetangx.com/learn/*
 // @grant            none
@@ -42,7 +42,7 @@ var XuetangXAutoLearn = (() => {
     namespace: "http://tampermonkey.net/",
     version: "1.8.0",
     license: "MIT",
-    description: '\u4E3A\u5B66\u5802\u5728\u7EBF(xuetangx.com/learn/)\u63D0\u4F9B\u4E00\u4E2A\u64CD\u4F5C\u9762\u677F\uFF0C\u53EA\u64AD\u653E\u5DE6\u4FA7"\u997C\u56FE\u672A\u6EE1"\u7684\u7AE0\u8282\uFF1B\u5BF9\u8BA8\u8BBA\u9898\u4F1A\u81EA\u52A8\u586B\u5165\u201C\u8BFE\u7A0B\u5F88\u68D2\uFF01\u201D\u5E76\u63D0\u4EA4\uFF1B\u81EA\u52A8 2.0 \u500D\u901F\u3001\u9759\u97F3\u3001\u5FAA\u73AF\u64AD\u653E\uFF0C\u76F4\u5230\u997C\u56FE\u6EE1\u518D\u8DF3\u4E0B\u4E00\u8282\u3002',
+    description: '\u4E3A\u5B66\u5802\u5728\u7EBF(xuetangx.com/learn/)\u63D0\u4F9B\u4E00\u4E2A\u64CD\u4F5C\u9762\u677F\uFF0C\u53EA\u64AD\u653E\u5DE6\u4FA7"\u997C\u56FE\u672A\u6EE1"\u7684\u7AE0\u8282\uFF0C\u5E76\u81EA\u52A8\u8DF3\u8FC7\u6807\u9898\u4E2D\u5305\u542B [\u97F3\u9891] \u7684\u7AE0\u8282\uFF1B\u5BF9\u8BA8\u8BBA\u9898\u4F1A\u81EA\u52A8\u586B\u5165\u201C\u8BFE\u7A0B\u5F88\u68D2\uFF01\u201D\u5E76\u63D0\u4EA4\uFF1B\u81EA\u52A8 2.0 \u500D\u901F\u3001\u9759\u97F3\u3001\u5FAA\u73AF\u64AD\u653E\uFF0C\u76F4\u5230\u997C\u56FE\u6EE1\u518D\u8DF3\u4E0B\u4E00\u8282\u3002',
     author: "Yangkunlong + ChatGPT",
     match: "*://www.xuetangx.com/learn/*",
     grant: "none",
@@ -141,16 +141,16 @@ var XuetangXAutoLearn = (() => {
             \u{1F680} \u5B66\u5802\u5728\u7EBF\u81EA\u52A8\u5B66\u4E60\u9762\u677F
         </div>
         <div style="padding: 10px;">
-            <p><strong>\u672A\u5B8C\u6210\u7AE0\u8282\u6570: </strong><span id="video-count">\u52A0\u8F7D\u4E2D...</span></p>
+            <p><strong>\u53EF\u81EA\u52A8\u5B66\u4E60\u7AE0\u8282\u6570: </strong><span id="video-count">\u52A0\u8F7D\u4E2D...</span></p>
             <div style="margin-bottom: 15px; margin-top: 10px;">
-                <label for="start-select" style="display: block; font-weight: bold;">\u9009\u62E9\u8D77\u59CB\u7AE0\u8282\uFF08\u4EC5\u663E\u793A\u997C\u56FE\u672A\u6EE1\uFF09:</label>
+                <label for="start-select" style="display: block; font-weight: bold;">\u9009\u62E9\u8D77\u59CB\u7AE0\u8282\uFF08\u4EC5\u663E\u793A\u53EF\u81EA\u52A8\u5B66\u4E60\u7AE0\u8282\uFF09:</label>
                 <select id="start-select" style="width: 100%; padding: 7px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"></select>
             </div>
             <button id="start-automation" style="width: 100%; padding: 10px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
                 \u25B6\uFE0F \u4ECE\u6240\u9009\u7AE0\u8282\u5F00\u59CB\u81EA\u52A8\u5B66\u4E60
             </button>
             <p style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
-                * \u53EA\u64AD\u653E\u997C\u56FE\u672A\u6EE1\u7684\u7AE0\u8282\uFF1B\u8BA8\u8BBA\u9898\u4F1A\u81EA\u52A8\u586B\u5165\u201C\u8BFE\u7A0B\u5F88\u68D2\uFF01\u201D\u5E76\u63D0\u4EA4\uFF1B\u81EA\u52A8 2.0 \u500D\u901F\u3001\u9759\u97F3\uFF0C\u6BCF 5 \u79D2\u68C0\u67E5\u8FDB\u5EA6\uFF0C\u997C\u56FE\u672A\u6EE1\u4F1A\u81EA\u52A8\u91CD\u64AD\u672C\u8282\u3002
+                * \u53EA\u64AD\u653E\u997C\u56FE\u672A\u6EE1\u4E14\u975E [\u97F3\u9891] \u7684\u7AE0\u8282\uFF1B\u8BA8\u8BBA\u9898\u4F1A\u81EA\u52A8\u586B\u5165\u201C\u8BFE\u7A0B\u5F88\u68D2\uFF01\u201D\u5E76\u63D0\u4EA4\uFF1B\u81EA\u52A8 2.0 \u500D\u901F\u3001\u9759\u97F3\uFF0C\u6BCF 5 \u79D2\u68C0\u67E5\u8FDB\u5EA6\uFF0C\u997C\u56FE\u672A\u6EE1\u4F1A\u81EA\u52A8\u91CD\u64AD\u672C\u8282\u3002
             </p>
 
             <div id="gemini-status"
@@ -181,6 +181,15 @@ var XuetangXAutoLearn = (() => {
       return false;
     return /习题|作业|练习|测验|考试|homework|quiz|exercise/i.test(text);
   }
+  function isVideoChapter(menuContentItem) {
+    if (!menuContentItem)
+      return false;
+    var itemType = menuContentItem.querySelector(".item-type");
+    if (!itemType)
+      return false;
+    var text = (itemType.innerText || "").trim();
+    return text === "\u89C6\u9891";
+  }
   function isImageTextChapter(menuContentItem) {
     if (!menuContentItem)
       return false;
@@ -196,6 +205,16 @@ var XuetangXAutoLearn = (() => {
     const typeText = getChapterType(menuContentItem);
     const titleText = getChapterTitle(menuContentItem);
     return /讨论|discussion/i.test(typeText) || /讨论|discussion/i.test(titleText);
+  }
+  function isAudioChapter(menuContentItem) {
+    if (!menuContentItem)
+      return false;
+    const titleText = getChapterTitle(menuContentItem);
+    const typeText = getChapterType(menuContentItem);
+    return titleText.includes("[\u97F3\u9891]") || typeText === "\u97F3\u9891";
+  }
+  function shouldSkipChapter(menuContentItem) {
+    return isChapterFinished(menuContentItem) || isHomeworkChapter(menuContentItem) || isAudioChapter(menuContentItem);
   }
   function isChapterFinished(menuContentItem) {
     if (!menuContentItem)
@@ -296,11 +315,23 @@ var XuetangXAutoLearn = (() => {
     const lists2 = getAllChapters();
     for (let i = startIndex + 1; i < lists2.length; i++) {
       const item = lists2[i];
-      if (isChapterFinished(item))
-        continue;
-      if (isHomeworkChapter(item))
+      if (shouldSkipChapter(item))
         continue;
       return i;
+    }
+    return -1;
+  }
+  function findRefreshJumpChapter(currentIndex) {
+    const lists2 = getAllChapters();
+    for (let offset = 1; offset < lists2.length; offset++) {
+      const forwardIndex = currentIndex + offset;
+      if (forwardIndex < lists2.length && isVideoChapter(lists2[forwardIndex]) && !shouldSkipChapter(lists2[forwardIndex])) {
+        return forwardIndex;
+      }
+      const backwardIndex = currentIndex - offset;
+      if (backwardIndex >= 0 && isVideoChapter(lists2[backwardIndex]) && !shouldSkipChapter(lists2[backwardIndex])) {
+        return backwardIndex;
+      }
     }
     return -1;
   }
@@ -636,9 +667,7 @@ var XuetangXAutoLearn = (() => {
       let unfinishedCount = 0;
       for (let i = 0; i < lists.length; i++) {
         const item = lists[i];
-        if (isChapterFinished(item))
-          continue;
-        if (isHomeworkChapter(item))
+        if (shouldSkipChapter(item))
           continue;
         unfinishedCount++;
         const titleText = getChapterTitle(item);
@@ -651,9 +680,9 @@ var XuetangXAutoLearn = (() => {
       videoCountSpan.innerText = unfinishedCount;
       logStatus("\u5F53\u524D\u672A\u5B8C\u6210\u7AE0\u8282\u6570\uFF1A" + unfinishedCount + "\u3002");
       if (unfinishedCount === 0) {
-        startSelect.innerHTML = '<option value="-1">\u6CA1\u6709\u672A\u5B8C\u6210\u7684\u7AE0\u8282</option>';
+        startSelect.innerHTML = '<option value="-1">\u6CA1\u6709\u53EF\u81EA\u52A8\u5B66\u4E60\u7684\u7AE0\u8282</option>';
         startButton.disabled = true;
-        logStatus("\u6240\u6709\u7AE0\u8282\u997C\u56FE\u90FD\u5DF2\u6EE1\uFF0C\u65E0\u9700\u81EA\u52A8\u5B66\u4E60\u3002");
+        logStatus("\u6240\u6709\u53EF\u81EA\u52A8\u5B66\u4E60\u7AE0\u8282\u90FD\u5DF2\u5904\u7406\u5B8C\u6BD5\uFF0C\u65E0\u9700\u81EA\u52A8\u5B66\u4E60\u3002");
         return;
       } else {
         startButton.disabled = false;
@@ -702,7 +731,7 @@ var XuetangXAutoLearn = (() => {
     resetMarkAsFinishedFlow();
     resetDiscussionFlow();
     const currentItem = lists[index];
-    if (isHomeworkChapter(currentItem) || isChapterFinished(currentItem)) {
+    if (shouldSkipChapter(currentItem)) {
       gotoNextUnfinished(index);
       return;
     }
@@ -780,16 +809,9 @@ var XuetangXAutoLearn = (() => {
   }
   function switchChapterForPieRefresh() {
     lists = getAllChapters();
-    var jumpIndex = -1;
-    if (lists.length > 1) {
-      if (index + 1 < lists.length) {
-        jumpIndex = index + 1;
-      } else if (index - 1 >= 0) {
-        jumpIndex = index - 1;
-      }
-    }
+    const jumpIndex = findRefreshJumpChapter(index);
     if (jumpIndex === -1) {
-      logStatus("\u53EA\u6709\u4E00\u4E2A\u7AE0\u8282\uFF0C\u65E0\u6CD5\u5207\u7AE0\u5237\u65B0\u997C\u56FE\uFF0C\u76F4\u63A5\u68C0\u67E5\u5F53\u524D\u7AE0\u8282\u997C\u56FE\u3002");
+      logStatus("\u6CA1\u6709\u53EF\u7528\u4E8E\u5237\u65B0\u997C\u56FE\u7684\u4E34\u65F6\u7AE0\u8282\uFF0C\u76F4\u63A5\u68C0\u67E5\u5F53\u524D\u7AE0\u8282\u997C\u56FE\u3002");
       checkProgressAndMaybeGotoNext();
       return;
     }
