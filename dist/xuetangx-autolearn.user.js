@@ -182,6 +182,15 @@ var XuetangXAutoLearn = (() => {
       return false;
     return /习题|作业|练习|测验|考试|homework|quiz|exercise/i.test(text);
   }
+  function isImageTextChapter(menuContentItem) {
+    if (!menuContentItem)
+      return false;
+    var itemType = menuContentItem.querySelector(".item-type");
+    if (!itemType)
+      return false;
+    var text = (itemType.innerText || "").trim();
+    return text === "\u56FE\u6587";
+  }
   function isChapterFinished(menuContentItem) {
     if (!menuContentItem)
       return false;
@@ -365,6 +374,18 @@ var XuetangXAutoLearn = (() => {
   function next() {
     const video = findVideoPlayer();
     if (video === void 0) {
+      lists = getAllChapters();
+      const currentItem = lists[index];
+      if (isImageTextChapter(currentItem)) {
+        console.log("\u5F53\u524D\u4E3A\u56FE\u6587\u7AE0\u8282\uFF0C\u76F4\u63A5\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE");
+        logStatus("\u5F53\u524D\u4E3A\u56FE\u6587\u7AE0\u8282\uFF0C\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE");
+        if (clickMarkAsFinishedButton()) {
+          setTimeout(function() {
+            checkProgressAndMaybeGotoNext();
+          }, 2e3);
+          return;
+        }
+      }
       const versionSwitch = document.querySelector(".version-switch");
       if (versionSwitch && videoSwitchRetryCount < VIDEO_SWITCH_RETRY_MAX) {
         videoSwitchRetryCount++;

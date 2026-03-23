@@ -1,7 +1,7 @@
 import { SCRIPT_METADATA, MAX_REPLAY_PER_CHAPTER, CHECK_INTERVAL_MS, PANEL_INIT_DELAY_MS, PANEL_POPULATE_DELAY_MS, VIDEO_SWITCH_RETRY_MAX, PIE_REFRESH_DELAY_MS, VIDEO_REPLAY_DELAY_MS } from './constants.js';
 import { logStatus } from './utils.js';
 import { createPanel } from './panel.js';
-import { isHomeworkChapter, isChapterFinished, getChapterTitle, getChapterType, getAllChapters } from './chapters.js';
+import { isHomeworkChapter, isChapterFinished, getChapterTitle, getChapterType, getAllChapters, isImageTextChapter } from './chapters.js';
 import { findVideoPlayer, clickMarkAsFinishedButton, soundClose, setSpeed, playVideo, isVideoValid } from './video.js';
 import { findNextUnfinished, navigateToChapter } from './navigation.js';
 
@@ -133,6 +133,20 @@ function next() {
     const video = findVideoPlayer();
 
     if (video === undefined) {
+        lists = getAllChapters();
+        const currentItem = lists[index];
+
+        if (isImageTextChapter(currentItem)) {
+            console.log("当前为图文章节，直接点击'标记看完'按钮");
+            logStatus("当前为图文章节，点击'标记看完'按钮");
+            if (clickMarkAsFinishedButton()) {
+                setTimeout(function() {
+                    checkProgressAndMaybeGotoNext();
+                }, 2000);
+                return;
+            }
+        }
+
         const versionSwitch = document.querySelector('.version-switch');
         if (versionSwitch && videoSwitchRetryCount < VIDEO_SWITCH_RETRY_MAX) {
             videoSwitchRetryCount++;

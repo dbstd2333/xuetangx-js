@@ -46,15 +46,12 @@
 
 ## 📥 安装方法
 
-### 1. 安装油猴扩展
+### 1. 安装脚本管理器
 
-确保已安装以下任一扩展：
+确保已安装以下扩展：
 
-* **Tampermonkey (推荐)**
-  [https://www.tampermonkey.net/](https://www.tampermonkey.net/)
-
-* Violentmonkey
-  [https://violentmonkey.github.io/](https://violentmonkey.github.io/)
+* **脚本猫 (ScriptCat) (推荐)**
+  [https://docs.scriptcat.org/](https://docs.scriptcat.org/)
 
 ### 2. 安装脚本
 
@@ -94,8 +91,11 @@
 
 ## 📄 许可证 License
 
-本项目遵循 **MIT License**
-详情参见：
-[https://github.com/yang-kun-long/xuetangx-js/blob/main/LICENSE](https://github.com/yang-kun-long/xuetangx-js/blob/main/LICENSE)
+本项目采用 **自定义开源许可证**
+
+- ✅ 允许 clone、fork、个人学习和研究使用
+- ❌ **禁止商业用途**
+
+详情参见 [LICENSE](LICENSE)
 
 ---

@@ -20,6 +20,16 @@ export function isVideoChapter(menuContentItem) {
     return text === "视频";
 }
 
+export function isImageTextChapter(menuContentItem) {
+    if (!menuContentItem) return false;
+
+    var itemType = menuContentItem.querySelector(".item-type");
+    if (!itemType) return false;
+
+    var text = (itemType.innerText || "").trim();
+    return text === "图文";
+}
+
 export function isChapterFinished(menuContentItem) {
     if (!menuContentItem) return false;
     return menuContentItem.querySelector(".is-finish") !== null;

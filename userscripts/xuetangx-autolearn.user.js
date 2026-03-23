@@ -120,6 +120,16 @@
         return text === "视频";
     }
 
+    function isImageTextChapter(menuContentItem) {
+        if (!menuContentItem) return false;
+
+        var itemType = menuContentItem.querySelector(".item-type");
+        if (!itemType) return false;
+
+        var text = (itemType.innerText || "").trim();
+        return text === "图文";
+    }
+
     function isChapterFinished(menuContentItem) {
         if (!menuContentItem) return false;
         return menuContentItem.querySelector(".is-finish") !== null;
@@ -344,6 +354,20 @@
         var video = videos.length > 0 ? videos[0] : undefined;
 
         if (video === undefined) {
+            lists = document.querySelectorAll(".menu-content-item");
+            var currentItem = lists[index];
+
+            if (isImageTextChapter(currentItem)) {
+                console.log("当前为图文章节，直接点击'标记看完'按钮");
+                logStatus("当前为图文章节，点击'标记看完'按钮");
+                if (clickMarkAsFinishedButton()) {
+                    setTimeout(function() {
+                        checkProgressAndMaybeGotoNext();
+                    }, 2000);
+                    return;
+                }
+            }
+
             var versionSwitch = document.querySelector('.version-switch');
             if (versionSwitch && videoSwitchRetryCount < 3) {
                 videoSwitchRetryCount++;
