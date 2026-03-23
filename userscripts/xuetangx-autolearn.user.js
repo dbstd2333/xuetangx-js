@@ -141,7 +141,12 @@
             if (buttons[i].innerText && buttons[i].innerText.includes("看完")) {
                 console.log("找到'标记看完'按钮，点击它");
                 logStatus("图文课程：点击'标记看完'按钮");
-                buttons[i].click();
+                var evt = new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window
+                });
+                buttons[i].dispatchEvent(evt);
                 return true;
             }
         }
@@ -361,6 +366,7 @@
                 console.log("当前为图文章节，直接点击'标记看完'按钮");
                 logStatus("当前为图文章节，点击'标记看完'按钮");
                 if (clickMarkAsFinishedButton()) {
+                    pendingCheckIndex = index;
                     setTimeout(function() {
                         checkProgressAndMaybeGotoNext();
                     }, 2000);

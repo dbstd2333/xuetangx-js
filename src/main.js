@@ -140,6 +140,7 @@ function next() {
             console.log("当前为图文章节，直接点击'标记看完'按钮");
             logStatus("当前为图文章节，点击'标记看完'按钮");
             if (clickMarkAsFinishedButton()) {
+                pendingCheckIndex = index;
                 setTimeout(function() {
                     checkProgressAndMaybeGotoNext();
                 }, 2000);
