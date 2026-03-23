@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name             学堂在线视频自动学习面板脚本
 // @namespace        http://tampermonkey.net/
-// @version          1.7.0
+// @version          1.8.0
 // @license          MIT
-// @description      为学堂在线(xuetangx.com/learn/)提供一个操作面板，只播放左侧"饼图未满"的章节；自动 2.0 倍速、静音、循环播放，直到饼图满再跳下一节。
+// @description      为学堂在线(xuetangx.com/learn/)提供一个操作面板，只播放左侧"饼图未满"的章节；对讨论题会自动填入“课程很棒！”并提交；自动 2.0 倍速、静音、循环播放，直到饼图满再跳下一节。
 // @author           Yangkunlong + ChatGPT + qinxurui
 // @match            *://www.xuetangx.com/learn/*
 // @grant            none
@@ -40,9 +40,9 @@ var XuetangXAutoLearn = (() => {
   var SCRIPT_METADATA = {
     name: "\u5B66\u5802\u5728\u7EBF\u89C6\u9891\u81EA\u52A8\u5B66\u4E60\u9762\u677F\u811A\u672C",
     namespace: "http://tampermonkey.net/",
-    version: "1.7.0",
+    version: "1.8.0",
     license: "MIT",
-    description: '\u4E3A\u5B66\u5802\u5728\u7EBF(xuetangx.com/learn/)\u63D0\u4F9B\u4E00\u4E2A\u64CD\u4F5C\u9762\u677F\uFF0C\u53EA\u64AD\u653E\u5DE6\u4FA7"\u997C\u56FE\u672A\u6EE1"\u7684\u7AE0\u8282\uFF1B\u81EA\u52A8 2.0 \u500D\u901F\u3001\u9759\u97F3\u3001\u5FAA\u73AF\u64AD\u653E\uFF0C\u76F4\u5230\u997C\u56FE\u6EE1\u518D\u8DF3\u4E0B\u4E00\u8282\u3002',
+    description: '\u4E3A\u5B66\u5802\u5728\u7EBF(xuetangx.com/learn/)\u63D0\u4F9B\u4E00\u4E2A\u64CD\u4F5C\u9762\u677F\uFF0C\u53EA\u64AD\u653E\u5DE6\u4FA7"\u997C\u56FE\u672A\u6EE1"\u7684\u7AE0\u8282\uFF1B\u5BF9\u8BA8\u8BBA\u9898\u4F1A\u81EA\u52A8\u586B\u5165\u201C\u8BFE\u7A0B\u5F88\u68D2\uFF01\u201D\u5E76\u63D0\u4EA4\uFF1B\u81EA\u52A8 2.0 \u500D\u901F\u3001\u9759\u97F3\u3001\u5FAA\u73AF\u64AD\u653E\uFF0C\u76F4\u5230\u997C\u56FE\u6EE1\u518D\u8DF3\u4E0B\u4E00\u8282\u3002',
     author: "Yangkunlong + ChatGPT",
     match: "*://www.xuetangx.com/learn/*",
     grant: "none",
@@ -150,7 +150,7 @@ var XuetangXAutoLearn = (() => {
                 \u25B6\uFE0F \u4ECE\u6240\u9009\u7AE0\u8282\u5F00\u59CB\u81EA\u52A8\u5B66\u4E60
             </button>
             <p style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
-                * \u53EA\u64AD\u653E\u997C\u56FE\u672A\u6EE1\u7684\u7AE0\u8282\uFF1B\u81EA\u52A8 2.0 \u500D\u901F\u3001\u9759\u97F3\uFF0C\u6BCF 5 \u79D2\u68C0\u67E5\u8FDB\u5EA6\uFF0C\u997C\u56FE\u672A\u6EE1\u4F1A\u81EA\u52A8\u91CD\u64AD\u672C\u8282\u3002
+                * \u53EA\u64AD\u653E\u997C\u56FE\u672A\u6EE1\u7684\u7AE0\u8282\uFF1B\u8BA8\u8BBA\u9898\u4F1A\u81EA\u52A8\u586B\u5165\u201C\u8BFE\u7A0B\u5F88\u68D2\uFF01\u201D\u5E76\u63D0\u4EA4\uFF1B\u81EA\u52A8 2.0 \u500D\u901F\u3001\u9759\u97F3\uFF0C\u6BCF 5 \u79D2\u68C0\u67E5\u8FDB\u5EA6\uFF0C\u997C\u56FE\u672A\u6EE1\u4F1A\u81EA\u52A8\u91CD\u64AD\u672C\u8282\u3002
             </p>
 
             <div id="gemini-status"
@@ -189,6 +189,13 @@ var XuetangXAutoLearn = (() => {
       return false;
     var text = (itemType.innerText || "").trim();
     return text === "\u56FE\u6587";
+  }
+  function isDiscussionChapter(menuContentItem) {
+    if (!menuContentItem)
+      return false;
+    const typeText = getChapterType(menuContentItem);
+    const titleText = getChapterTitle(menuContentItem);
+    return /讨论|discussion/i.test(typeText) || /讨论|discussion/i.test(titleText);
   }
   function isChapterFinished(menuContentItem) {
     if (!menuContentItem)
@@ -387,6 +394,224 @@ var XuetangXAutoLearn = (() => {
     activeGotoNextUnfinished = null;
   }
 
+  // src/discussion.js
+  var DISCUSSION_ANSWER_TEXT = "\u8BFE\u7A0B\u5F88\u68D2\uFF01";
+  var DISCUSSION_RETRY_DELAY_MS = 1500;
+  var DISCUSSION_SEND_DELAY_MS = 250;
+  var DISCUSSION_COMPLETE_DELAY_MS = 2e3;
+  var DISCUSSION_MAX_RETRY = 5;
+  var isDiscussionFlowRunning = false;
+  var discussionRetryCount = 0;
+  var discussionTimer = null;
+  var activeDiscussionIndex = null;
+  var activeGotoNextUnfinished2 = null;
+  function isVisibleElement(element) {
+    if (!element)
+      return false;
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
+  }
+  function setNativeInputValue(element, value) {
+    if (!element)
+      return;
+    if (element instanceof HTMLTextAreaElement || element instanceof HTMLInputElement) {
+      const proto = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const descriptor = Object.getOwnPropertyDescriptor(proto, "value");
+      if (descriptor && typeof descriptor.set === "function") {
+        descriptor.set.call(element, value);
+      } else {
+        element.value = value;
+      }
+      element.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true, cancelable: true }));
+      return;
+    }
+    element.textContent = value;
+    element.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
+  }
+  function dispatchEnterKey(element) {
+    if (!element)
+      return;
+    const eventInit = {
+      bubbles: true,
+      cancelable: true,
+      key: "Enter",
+      code: "Enter",
+      which: 13,
+      keyCode: 13,
+      charCode: 13
+    };
+    element.dispatchEvent(new KeyboardEvent("keydown", eventInit));
+    element.dispatchEvent(new KeyboardEvent("keypress", eventInit));
+    element.dispatchEvent(new KeyboardEvent("keyup", eventInit));
+  }
+  function findDiscussionEditor() {
+    const selectors = [
+      ".prompt-send-box textarea.el-textarea__inner",
+      ".topics-new textarea.el-textarea__inner",
+      '.prompt-send-box textarea[placeholder*="\u53D1\u8868"]',
+      '.topics-new textarea[placeholder*="\u53D1\u8868"]',
+      '.prompt-send-box [contenteditable="true"]',
+      '.topics-new [contenteditable="true"]'
+    ];
+    for (let i = 0; i < selectors.length; i++) {
+      const nodes = document.querySelectorAll(selectors[i]);
+      for (let j = 0; j < nodes.length; j++) {
+        const node = nodes[j];
+        if (isVisibleElement(node) && !node.closest(".replyBox")) {
+          return node;
+        }
+      }
+    }
+    const fallbackNodes = document.querySelectorAll('textarea, [contenteditable="true"]');
+    for (let i = 0; i < fallbackNodes.length; i++) {
+      const node = fallbackNodes[i];
+      if (isVisibleElement(node) && !node.closest(".replyBox")) {
+        return node;
+      }
+    }
+    return null;
+  }
+  function findDiscussionSendControl() {
+    const selectors = [
+      ".prompt-send-box .prompt-send-btn",
+      ".topics-new .prompt-send-btn"
+    ];
+    for (let i = 0; i < selectors.length; i++) {
+      const nodes = document.querySelectorAll(selectors[i]);
+      for (let j = 0; j < nodes.length; j++) {
+        const node = nodes[j];
+        if (isVisibleElement(node) && !node.closest(".replyBox")) {
+          return node;
+        }
+      }
+    }
+    const fallbackNodes = document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"], a');
+    for (let i = 0; i < fallbackNodes.length; i++) {
+      const node = fallbackNodes[i];
+      const text = (node.innerText || node.textContent || node.value || "").trim();
+      if (!isVisibleElement(node) || node.closest(".replyBox"))
+        continue;
+      if (/提交|发表|发布|发送|回复|评论/i.test(text) || /提交|发表|发布|发送|回复|评论/i.test(node.getAttribute("aria-label") || "")) {
+        return node;
+      }
+    }
+    return null;
+  }
+  function isControlDisabled(element) {
+    if (!element)
+      return true;
+    return Boolean(
+      element.disabled || element.getAttribute("aria-disabled") === "true" || element.classList && element.classList.contains("disabled")
+    );
+  }
+  function clickDiscussionSendControl(control) {
+    if (!control)
+      return false;
+    try {
+      control.scrollIntoView({ block: "center", inline: "center" });
+    } catch (error) {
+    }
+    if (typeof control.focus === "function") {
+      control.focus();
+    }
+    control.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    }));
+    control.dispatchEvent(new MouseEvent("mouseup", {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    }));
+    control.click();
+    return true;
+  }
+  function clearDiscussionTimer() {
+    if (discussionTimer) {
+      window.clearTimeout(discussionTimer);
+      discussionTimer = null;
+    }
+  }
+  function resetDiscussionState() {
+    clearDiscussionTimer();
+    isDiscussionFlowRunning = false;
+    discussionRetryCount = 0;
+  }
+  function finishDiscussionFlow() {
+    const gotoNextUnfinished2 = activeGotoNextUnfinished2;
+    const chapterIndex = activeDiscussionIndex;
+    resetDiscussionState();
+    activeDiscussionIndex = null;
+    activeGotoNextUnfinished2 = null;
+    if (typeof gotoNextUnfinished2 === "function") {
+      gotoNextUnfinished2(chapterIndex);
+    }
+  }
+  function submitDiscussionAnswer() {
+    if (!isDiscussionFlowRunning)
+      return;
+    const currentItem = getAllChapters()[activeDiscussionIndex];
+    if (!currentItem) {
+      logStatus("\u627E\u4E0D\u5230\u5F53\u524D\u8BA8\u8BBA\u7AE0\u8282\uFF0C\u76F4\u63A5\u8DF3\u5230\u4E0B\u4E00\u8282\u3002");
+      finishDiscussionFlow();
+      return;
+    }
+    if (isChapterFinished(currentItem)) {
+      logStatus("\u5F53\u524D\u8BA8\u8BBA\u7AE0\u8282\u5DF2\u5B8C\u6210\uFF0C\u8DF3\u5230\u4E0B\u4E00\u8282\u3002");
+      finishDiscussionFlow();
+      return;
+    }
+    const editor = findDiscussionEditor();
+    if (!editor) {
+      if (discussionRetryCount >= DISCUSSION_MAX_RETRY) {
+        logStatus("\u672A\u627E\u5230\u8BA8\u8BBA\u9898\u8F93\u5165\u6846\uFF0C\u5DF2\u8DF3\u8FC7\u8FD9\u4E00\u8282\u3002");
+        finishDiscussionFlow();
+        return;
+      }
+      discussionRetryCount++;
+      logStatus("\u672A\u627E\u5230\u8BA8\u8BBA\u9898\u8F93\u5165\u6846\uFF0C\u7B49\u5F85\u9875\u9762\u52A0\u8F7D\u540E\u91CD\u8BD5\u3002");
+      discussionTimer = window.setTimeout(submitDiscussionAnswer, DISCUSSION_RETRY_DELAY_MS);
+      return;
+    }
+    setNativeInputValue(editor, DISCUSSION_ANSWER_TEXT);
+    if (typeof editor.focus === "function") {
+      editor.focus();
+    }
+    logStatus("\u5DF2\u586B\u5199\u8BA8\u8BBA\u9898\u7B54\u6848\u201C\u8BFE\u7A0B\u5F88\u68D2\uFF01\u201D\uFF0C\u51C6\u5907\u63D0\u4EA4\u3002");
+    discussionTimer = window.setTimeout(function() {
+      const sendControl = findDiscussionSendControl();
+      if (sendControl && !isControlDisabled(sendControl)) {
+        clickDiscussionSendControl(sendControl);
+        logStatus("\u5DF2\u70B9\u51FB\u8BA8\u8BBA\u9898\u63D0\u4EA4\u6309\u94AE\u3002");
+      } else {
+        dispatchEnterKey(editor);
+        logStatus("\u5DF2\u901A\u8FC7 Enter \u5C1D\u8BD5\u63D0\u4EA4\u8BA8\u8BBA\u9898\u3002");
+      }
+      discussionTimer = window.setTimeout(finishDiscussionFlow, DISCUSSION_COMPLETE_DELAY_MS);
+    }, DISCUSSION_SEND_DELAY_MS);
+  }
+  function hasDiscussionComposer() {
+    return findDiscussionEditor() !== null;
+  }
+  function startDiscussionFlow(chapterIndex, gotoNextUnfinished2) {
+    if (isDiscussionFlowRunning) {
+      return;
+    }
+    isDiscussionFlowRunning = true;
+    activeDiscussionIndex = chapterIndex;
+    activeGotoNextUnfinished2 = gotoNextUnfinished2;
+    discussionRetryCount = 0;
+    submitDiscussionAnswer();
+  }
+  function resetDiscussionFlow() {
+    resetDiscussionState();
+    activeDiscussionIndex = null;
+    activeGotoNextUnfinished2 = null;
+  }
+
   // src/main.js
   var index = 0;
   var runIt;
@@ -461,6 +686,7 @@ var XuetangXAutoLearn = (() => {
       return;
     }
     resetMarkAsFinishedFlow();
+    resetDiscussionFlow();
     startNum(nextIdx);
   }
   function startNum(num) {
@@ -474,6 +700,7 @@ var XuetangXAutoLearn = (() => {
     }
     index = num;
     resetMarkAsFinishedFlow();
+    resetDiscussionFlow();
     const currentItem = lists[index];
     if (isHomeworkChapter(currentItem) || isChapterFinished(currentItem)) {
       gotoNextUnfinished(index);
@@ -502,6 +729,12 @@ var XuetangXAutoLearn = (() => {
       }
       if (isImageTextChapter(currentItem) || findMarkAsFinishedButton()) {
         startMarkAsFinishedFlow(index, gotoNextUnfinished);
+        return;
+      }
+      if (isDiscussionChapter(currentItem) || hasDiscussionComposer()) {
+        console.log("\u5F53\u524D\u7AE0\u8282\u662F\u8BA8\u8BBA\u9898\uFF0C\u51C6\u5907\u81EA\u52A8\u586B\u5199\u5E76\u63D0\u4EA4\u3002");
+        logStatus("\u5F53\u524D\u7AE0\u8282\u662F\u8BA8\u8BBA\u9898\uFF0C\u81EA\u52A8\u586B\u5199\u201C\u8BFE\u7A0B\u5F88\u68D2\uFF01\u201D\u5E76\u63D0\u4EA4\u540E\u8FDB\u5165\u4E0B\u4E00\u8282\u3002");
+        startDiscussionFlow(index, gotoNextUnfinished);
         return;
       }
       console.log("\u672A\u627E\u5230\u89C6\u9891\u64AD\u653E\u5668\uFF0C\u53EF\u80FD\u662F\u4F5C\u4E1A/\u8BA8\u8BBA/\u56FE\u6587\uFF0C\u8DF3\u8F6C\u4E0B\u4E00\u4E2A\u672A\u5B8C\u6210\u7AE0\u8282\u3002");

@@ -1,22 +1,20 @@
 import { SCRIPT_METADATA, MAX_REPLAY_PER_CHAPTER, CHECK_INTERVAL_MS, PANEL_INIT_DELAY_MS, PANEL_POPULATE_DELAY_MS, PIE_REFRESH_DELAY_MS, VIDEO_REPLAY_DELAY_MS } from './constants.js';
 import { logStatus } from './utils.js';
 import { createPanel } from './panel.js';
-import { isHomeworkChapter, isChapterFinished, getChapterTitle, getChapterType, getAllChapters, isImageTextChapter } from './chapters.js';
+import { isHomeworkChapter, isChapterFinished, getChapterTitle, getChapterType, getAllChapters, isImageTextChapter, isDiscussionChapter } from './chapters.js';
 import { findVideoPlayer, findMarkAsFinishedButton, soundClose, setSpeed, playVideo, isVideoValid } from './video.js';
 import { findNextUnfinished } from './navigation.js';
 import { startMarkAsFinishedFlow, resetMarkAsFinishedFlow } from './mark-finished.js';
-
+import { hasDiscussionComposer, startDiscussionFlow, resetDiscussionFlow } from './discussion.js';
 let index = 0;
 let runIt;
 let lists;
 let replayCountMap = {};
 let pendingCheckIndex = null;
 let isRefreshingPie = false;
-
 export function populatePanel() {
     try {
         lists = getAllChapters();
-
         const videoCountSpan = document.getElementById("video-count");
         const startSelect = document.getElementById("start-select");
         const startButton = document.getElementById("start-automation");
@@ -31,7 +29,6 @@ export function populatePanel() {
 
         startSelect.innerHTML = '';
         let unfinishedCount = 0;
-
         for (let i = 0; i < lists.length; i++) {
             const item = lists[i];
 
@@ -48,7 +45,6 @@ export function populatePanel() {
             option.innerText = `[#${i}] [${typeText}] ${titleText}`;
             startSelect.appendChild(option);
         }
-
         videoCountSpan.innerText = unfinishedCount;
         logStatus("当前未完成章节数：" + unfinishedCount + "。");
 
@@ -60,7 +56,6 @@ export function populatePanel() {
         } else {
             startButton.disabled = false;
         }
-
         startButton.onclick = function() {
             const selectedValue = startSelect.value;
             const selectedIndex = parseInt(selectedValue, 10);
@@ -91,9 +86,9 @@ function gotoNextUnfinished(currentIndex) {
         return;
     }
     resetMarkAsFinishedFlow();
+    resetDiscussionFlow();
     startNum(nextIdx);
 }
-
 function startNum(num) {
     lists = getAllChapters();
 
@@ -107,6 +102,7 @@ function startNum(num) {
 
     index = num;
     resetMarkAsFinishedFlow();
+    resetDiscussionFlow();
     const currentItem = lists[index];
 
     if (isHomeworkChapter(currentItem) || isChapterFinished(currentItem)) {
@@ -123,13 +119,11 @@ function startNum(num) {
     currentItem.click();
     start();
 }
-
 function start() {
     console.log("播放检查/启动----");
     window.clearInterval(runIt);
     runIt = setInterval(next, CHECK_INTERVAL_MS);
 }
-
 function next() {
     const video = findVideoPlayer();
 
@@ -147,12 +141,18 @@ function next() {
             return;
         }
 
+        if (isDiscussionChapter(currentItem) || hasDiscussionComposer()) {
+            console.log("当前章节是讨论题，准备自动填写并提交。");
+            logStatus("当前章节是讨论题，自动填写“课程很棒！”并提交后进入下一节。");
+            startDiscussionFlow(index, gotoNextUnfinished);
+            return;
+        }
+
         console.log("未找到视频播放器，可能是作业/讨论/图文，跳转下一个未完成章节。");
         logStatus("当前章节不是视频（可能是作业/讨论/图文），跳到下一个未完成章节。");
         gotoNextUnfinished(index);
         return;
     }
-
     const c = video.currentTime;
     const d = video.duration;
 
@@ -164,7 +164,6 @@ function next() {
         }
         return;
     }
-
     setSpeed(video, 2.0);
     soundClose();
 
@@ -178,7 +177,6 @@ function next() {
             staNow.click();
         }
     }
-
     const ratio = c / d;
     const percentText = (ratio * 100).toFixed(2) + "%";
     const remain = d - c;
@@ -197,7 +195,6 @@ function next() {
         console.log("视频正在播放中... 进度: " + percentText);
     }
 }
-
 function switchChapterForPieRefresh() {
     lists = getAllChapters();
 
@@ -225,7 +222,6 @@ function switchChapterForPieRefresh() {
         checkProgressAndMaybeGotoNext();
     }, PIE_REFRESH_DELAY_MS);
 }
-
 function checkProgressAndMaybeGotoNext() {
     lists = getAllChapters();
 
@@ -288,16 +284,13 @@ function checkProgressAndMaybeGotoNext() {
         start();
     }, VIDEO_REPLAY_DELAY_MS);
 }
-
 function main() {
     console.log("油猴脚本已启动，开始加载操作面板...");
     createPanel();
     logStatus("脚本已载入，正在识别未完成的章节...");
     setTimeout(populatePanel, PANEL_POPULATE_DELAY_MS);
 }
-
 export function getMetadata() {
     return SCRIPT_METADATA;
 }
-
 setTimeout(main, PANEL_INIT_DELAY_MS);

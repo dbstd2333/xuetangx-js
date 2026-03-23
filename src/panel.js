@@ -52,7 +52,7 @@ export function createPanel() {
                 ▶️ 从所选章节开始自动学习
             </button>
             <p style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
-                * 只播放饼图未满的章节；自动 2.0 倍速、静音，每 5 秒检查进度，饼图未满会自动重播本节。
+                * 只播放饼图未满的章节；讨论题会自动填入“课程很棒！”并提交；自动 2.0 倍速、静音，每 5 秒检查进度，饼图未满会自动重播本节。
             </p>
 
             <div id="gemini-status"

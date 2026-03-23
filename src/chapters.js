@@ -30,6 +30,16 @@ export function isImageTextChapter(menuContentItem) {
     return text === "图文";
 }
 
+// 讨论题会进入独立的发帖页面，不能按普通视频章节处理。
+export function isDiscussionChapter(menuContentItem) {
+    if (!menuContentItem) return false;
+
+    const typeText = getChapterType(menuContentItem);
+    const titleText = getChapterTitle(menuContentItem);
+
+    return /讨论|discussion/i.test(typeText) || /讨论|discussion/i.test(titleText);
+}
+
 export function isChapterFinished(menuContentItem) {
     if (!menuContentItem) return false;
     return menuContentItem.querySelector(".is-finish") !== null;
