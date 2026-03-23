@@ -57,7 +57,7 @@
 
 点击下方链接即可自动安装：
 
-### ▶️ **[点击安装 xuetangx-autolearn.user.js](https://raw.githubusercontent.com/dbstd2333/xuetangx-js/main/userscripts/xuetangx-autolearn.user.js)**
+### ▶️ **[点击安装 xuetangx-autolearn.user.js](https://raw.githubusercontent.com/dbstd2333/xuetangx-js/main/dist/xuetangx-autolearn.user.js)**
 
 ---
 
