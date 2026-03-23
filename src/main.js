@@ -1,18 +1,17 @@
-import { SCRIPT_METADATA, MAX_REPLAY_PER_CHAPTER, CHECK_INTERVAL_MS, PANEL_INIT_DELAY_MS, PANEL_POPULATE_DELAY_MS, VIDEO_SWITCH_RETRY_MAX, PIE_REFRESH_DELAY_MS, VIDEO_REPLAY_DELAY_MS } from './constants.js';
+import { SCRIPT_METADATA, MAX_REPLAY_PER_CHAPTER, CHECK_INTERVAL_MS, PANEL_INIT_DELAY_MS, PANEL_POPULATE_DELAY_MS, PIE_REFRESH_DELAY_MS, VIDEO_REPLAY_DELAY_MS } from './constants.js';
 import { logStatus } from './utils.js';
 import { createPanel } from './panel.js';
 import { isHomeworkChapter, isChapterFinished, getChapterTitle, getChapterType, getAllChapters, isImageTextChapter } from './chapters.js';
-import { findVideoPlayer, clickMarkAsFinishedButton, soundClose, setSpeed, playVideo, isVideoValid } from './video.js';
-import { findNextUnfinished, navigateToChapter } from './navigation.js';
+import { findVideoPlayer, findMarkAsFinishedButton, soundClose, setSpeed, playVideo, isVideoValid } from './video.js';
+import { findNextUnfinished } from './navigation.js';
+import { startMarkAsFinishedFlow, resetMarkAsFinishedFlow } from './mark-finished.js';
 
 let index = 0;
 let runIt;
 let lists;
 let replayCountMap = {};
-let isCheckingProgress = false;
 let pendingCheckIndex = null;
 let isRefreshingPie = false;
-let videoSwitchRetryCount = 0;
 
 export function populatePanel() {
     try {
@@ -91,6 +90,7 @@ function gotoNextUnfinished(currentIndex) {
         alert("未完成的章节已全部播放完毕！");
         return;
     }
+    resetMarkAsFinishedFlow();
     startNum(nextIdx);
 }
 
@@ -106,6 +106,7 @@ function startNum(num) {
     }
 
     index = num;
+    resetMarkAsFinishedFlow();
     const currentItem = lists[index];
 
     if (isHomeworkChapter(currentItem) || isChapterFinished(currentItem)) {
@@ -136,41 +137,13 @@ function next() {
         lists = getAllChapters();
         const currentItem = lists[index];
 
-        if (isImageTextChapter(currentItem)) {
-            console.log("当前为图文章节，直接点击'标记看完'按钮");
-            logStatus("当前为图文章节，点击'标记看完'按钮");
-            if (clickMarkAsFinishedButton()) {
-                // 图文章节点击完成后，等待一下直接跳到下一个未完成章节
-                setTimeout(function() {
-                    gotoNextUnfinished(index);
-                }, 2000);
-                return;
-            }
-        }
-
-        const versionSwitch = document.querySelector('.version-switch');
-        if (versionSwitch && videoSwitchRetryCount < VIDEO_SWITCH_RETRY_MAX) {
-            videoSwitchRetryCount++;
-            console.log("未找到视频播放器，尝试点击旧版切换按钮 (重试次数:" + videoSwitchRetryCount + ")...");
-            logStatus("未找到视频播放器，点击旧版切换按钮 (重试次数:" + videoSwitchRetryCount + ")...");
-            versionSwitch.click();
-            setTimeout(function() {
-                const videoRetry = findVideoPlayer();
-                if (videoRetry !== undefined) {
-                    videoSwitchRetryCount = 0;
-                    console.log("切换旧版后成功找到视频播放器。");
-                    logStatus("切换到旧版后找到视频，继续播放。");
-                    next();
-                }
-            }, 1500);
+        if (!currentItem) {
+            gotoNextUnfinished(index);
             return;
         }
-        videoSwitchRetryCount = 0;
 
-        if (clickMarkAsFinishedButton()) {
-            setTimeout(function() {
-                checkProgressAndMaybeGotoNext();
-            }, 2000);
+        if (isImageTextChapter(currentItem) || findMarkAsFinishedButton()) {
+            startMarkAsFinishedFlow(index, gotoNextUnfinished);
             return;
         }
 
@@ -254,7 +227,6 @@ function switchChapterForPieRefresh() {
 }
 
 function checkProgressAndMaybeGotoNext() {
-    isCheckingProgress = false;
     lists = getAllChapters();
 
     if (pendingCheckIndex == null) {

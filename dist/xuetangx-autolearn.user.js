@@ -52,7 +52,6 @@ var XuetangXAutoLearn = (() => {
   var CHECK_INTERVAL_MS = 5e3;
   var PANEL_INIT_DELAY_MS = 2e3;
   var PANEL_POPULATE_DELAY_MS = 3e3;
-  var VIDEO_SWITCH_RETRY_MAX = 3;
   var PIE_REFRESH_DELAY_MS = 5e3;
   var VIDEO_REPLAY_DELAY_MS = 1e3;
 
@@ -213,17 +212,49 @@ var XuetangXAutoLearn = (() => {
     var videos = document.getElementsByClassName("xt_video_player");
     return videos.length > 0 ? videos[0] : void 0;
   }
-  function clickMarkAsFinishedButton() {
-    var buttons = document.querySelectorAll('button[class*="buttonhoverblank"]');
+  function normalizeText(text) {
+    return (text || "").replace(/\s+/g, "").trim();
+  }
+  function dispatchMouseEvent(target, type) {
+    if (!target)
+      return;
+    target.dispatchEvent(new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    }));
+  }
+  function findMarkAsFinishedButton() {
+    var buttons = document.querySelectorAll("button");
     for (var i = 0; i < buttons.length; i++) {
-      if (buttons[i].innerText && buttons[i].innerText.includes("\u770B\u5B8C")) {
-        console.log("\u627E\u5230'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE\uFF0C\u70B9\u51FB\u5B83");
-        logStatus("\u56FE\u6587\u8BFE\u7A0B\uFF1A\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE");
-        buttons[i].click();
-        return true;
+      var button = buttons[i];
+      var text = normalizeText(button.textContent || button.innerText);
+      var isVisible = button.getClientRects().length > 0;
+      var isDisabled = button.disabled || button.getAttribute("aria-disabled") === "true";
+      if (text.includes("\u6807\u8BB0\u770B\u5B8C") && isVisible && !isDisabled) {
+        return button;
       }
     }
-    return false;
+    return null;
+  }
+  function clickMarkAsFinishedButton() {
+    var button = findMarkAsFinishedButton();
+    if (!button) {
+      return false;
+    }
+    console.log("\u627E\u5230'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE\uFF0C\u70B9\u51FB\u5B83");
+    logStatus("\u5F53\u524D\u7AE0\u8282\uFF1A\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE");
+    try {
+      button.scrollIntoView({ block: "center", inline: "center" });
+    } catch (error) {
+    }
+    if (typeof button.focus === "function") {
+      button.focus();
+    }
+    dispatchMouseEvent(button, "mousedown");
+    dispatchMouseEvent(button, "mouseup");
+    button.click();
+    return true;
   }
   function soundClose() {
     var mutedIcon = document.getElementsByClassName("xt_video_player_common_icon_muted");
@@ -267,15 +298,102 @@ var XuetangXAutoLearn = (() => {
     return -1;
   }
 
+  // src/mark-finished.js
+  var MARK_AS_FINISHED_RETRY_DELAY_MS = 2e3;
+  var MARK_AS_FINISHED_RETRY_MAX = 5;
+  var isMarkingAsFinished = false;
+  var markAsFinishedRetryCount = 0;
+  var markAsFinishedTimer = null;
+  var activeChapterIndex = null;
+  var activeGotoNextUnfinished = null;
+  function resetMarkAsFinishedState() {
+    if (markAsFinishedTimer) {
+      window.clearTimeout(markAsFinishedTimer);
+      markAsFinishedTimer = null;
+    }
+    isMarkingAsFinished = false;
+    markAsFinishedRetryCount = 0;
+  }
+  function finishMarkAsFinishedFlow() {
+    const gotoNextUnfinished2 = activeGotoNextUnfinished;
+    const chapterIndex = activeChapterIndex;
+    resetMarkAsFinishedState();
+    activeChapterIndex = null;
+    activeGotoNextUnfinished = null;
+    if (typeof gotoNextUnfinished2 === "function") {
+      gotoNextUnfinished2(chapterIndex);
+    }
+  }
+  function scheduleNextCheck() {
+    markAsFinishedTimer = setTimeout(function() {
+      confirmMarkAsFinished();
+    }, MARK_AS_FINISHED_RETRY_DELAY_MS);
+  }
+  function tryClickMarkAsFinishedButton() {
+    const currentItem = getAllChapters()[activeChapterIndex];
+    if (!currentItem) {
+      console.log("\u627E\u4E0D\u5230\u5F53\u524D\u7AE0\u8282\u8282\u70B9\uFF0C\u8DF3\u5230\u4E0B\u4E00\u4E2A\u672A\u5B8C\u6210\u7AE0\u8282\u3002");
+      logStatus("\u627E\u4E0D\u5230\u5F53\u524D\u7AE0\u8282\u8282\u70B9\uFF0C\u8DF3\u5230\u4E0B\u4E00\u4E2A\u672A\u5B8C\u6210\u7AE0\u8282\u3002");
+      finishMarkAsFinishedFlow();
+      return;
+    }
+    if (isChapterFinished(currentItem)) {
+      console.log("\u5F53\u524D\u7AE0\u8282\u5DF2\u6807\u8BB0\u5B8C\u6210\uFF0C\u8DF3\u5230\u4E0B\u4E00\u4E2A\u672A\u5B8C\u6210\u7AE0\u8282\u3002");
+      logStatus("\u5F53\u524D\u7AE0\u8282\u5DF2\u6807\u8BB0\u5B8C\u6210\uFF0C\u8DF3\u5230\u4E0B\u4E00\u4E2A\u672A\u5B8C\u6210\u7AE0\u8282\u3002");
+      finishMarkAsFinishedFlow();
+      return;
+    }
+    if (markAsFinishedRetryCount >= MARK_AS_FINISHED_RETRY_MAX) {
+      console.log("\u5F53\u524D\u7AE0\u8282\u8FDE\u7EED\u5C1D\u8BD5\u6807\u8BB0\u770B\u5B8C\u4ECD\u672A\u6210\u529F\uFF0C\u8DF3\u5230\u4E0B\u4E00\u4E2A\u672A\u5B8C\u6210\u7AE0\u8282\u3002");
+      logStatus("\u5F53\u524D\u7AE0\u8282\u8FDE\u7EED\u5C1D\u8BD5\u6807\u8BB0\u770B\u5B8C\u4ECD\u672A\u6210\u529F\uFF0C\u8DF3\u5230\u4E0B\u4E00\u4E2A\u672A\u5B8C\u6210\u7AE0\u8282\u3002");
+      finishMarkAsFinishedFlow();
+      return;
+    }
+    console.log("\u5F53\u524D\u7AE0\u8282\u5C1D\u8BD5\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE (\u7B2C" + (markAsFinishedRetryCount + 1) + "\u6B21)\u3002");
+    logStatus("\u5F53\u524D\u7AE0\u8282\u5C1D\u8BD5\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE\uFF0C\u7B2C" + (markAsFinishedRetryCount + 1) + "\u6B21\u3002");
+    clickMarkAsFinishedButton();
+    markAsFinishedRetryCount++;
+    scheduleNextCheck();
+  }
+  function confirmMarkAsFinished() {
+    const currentItem = getAllChapters()[activeChapterIndex];
+    if (currentItem && isChapterFinished(currentItem)) {
+      console.log("\u5F53\u524D\u7AE0\u8282\u5DF2\u786E\u8BA4\u6807\u8BB0\u5B8C\u6210\uFF0C\u8DF3\u5230\u4E0B\u4E00\u4E2A\u672A\u5B8C\u6210\u7AE0\u8282\u3002");
+      logStatus("\u5F53\u524D\u7AE0\u8282\u5DF2\u786E\u8BA4\u6807\u8BB0\u5B8C\u6210\uFF0C\u8DF3\u5230\u4E0B\u4E00\u4E2A\u672A\u5B8C\u6210\u7AE0\u8282\u3002");
+      finishMarkAsFinishedFlow();
+      return;
+    }
+    if (markAsFinishedRetryCount >= MARK_AS_FINISHED_RETRY_MAX) {
+      console.log("\u5F53\u524D\u7AE0\u8282\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u540E\u4ECD\u672A\u786E\u8BA4\u5B8C\u6210\uFF0C\u8DF3\u5230\u4E0B\u4E00\u4E2A\u672A\u5B8C\u6210\u7AE0\u8282\u3002");
+      logStatus("\u5F53\u524D\u7AE0\u8282\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u540E\u4ECD\u672A\u786E\u8BA4\u5B8C\u6210\uFF0C\u8DF3\u5230\u4E0B\u4E00\u4E2A\u672A\u5B8C\u6210\u7AE0\u8282\u3002");
+      finishMarkAsFinishedFlow();
+      return;
+    }
+    tryClickMarkAsFinishedButton();
+  }
+  function startMarkAsFinishedFlow(chapterIndex, gotoNextUnfinished2) {
+    if (isMarkingAsFinished) {
+      return;
+    }
+    isMarkingAsFinished = true;
+    activeChapterIndex = chapterIndex;
+    activeGotoNextUnfinished = gotoNextUnfinished2;
+    markAsFinishedRetryCount = 0;
+    tryClickMarkAsFinishedButton();
+  }
+  function resetMarkAsFinishedFlow() {
+    resetMarkAsFinishedState();
+    activeChapterIndex = null;
+    activeGotoNextUnfinished = null;
+  }
+
   // src/main.js
   var index = 0;
   var runIt;
   var lists;
   var replayCountMap = {};
-  var isCheckingProgress = false;
   var pendingCheckIndex = null;
   var isRefreshingPie = false;
-  var videoSwitchRetryCount = 0;
   function populatePanel() {
     try {
       lists = getAllChapters();
@@ -342,6 +460,7 @@ var XuetangXAutoLearn = (() => {
       alert("\u672A\u5B8C\u6210\u7684\u7AE0\u8282\u5DF2\u5168\u90E8\u64AD\u653E\u5B8C\u6BD5\uFF01");
       return;
     }
+    resetMarkAsFinishedFlow();
     startNum(nextIdx);
   }
   function startNum(num) {
@@ -354,6 +473,7 @@ var XuetangXAutoLearn = (() => {
       return;
     }
     index = num;
+    resetMarkAsFinishedFlow();
     const currentItem = lists[index];
     if (isHomeworkChapter(currentItem) || isChapterFinished(currentItem)) {
       gotoNextUnfinished(index);
@@ -376,38 +496,12 @@ var XuetangXAutoLearn = (() => {
     if (video === void 0) {
       lists = getAllChapters();
       const currentItem = lists[index];
-      if (isImageTextChapter(currentItem)) {
-        console.log("\u5F53\u524D\u4E3A\u56FE\u6587\u7AE0\u8282\uFF0C\u76F4\u63A5\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE");
-        logStatus("\u5F53\u524D\u4E3A\u56FE\u6587\u7AE0\u8282\uFF0C\u70B9\u51FB'\u6807\u8BB0\u770B\u5B8C'\u6309\u94AE");
-        if (clickMarkAsFinishedButton()) {
-          setTimeout(function() {
-            gotoNextUnfinished(index);
-          }, 2e3);
-          return;
-        }
-      }
-      const versionSwitch = document.querySelector(".version-switch");
-      if (versionSwitch && videoSwitchRetryCount < VIDEO_SWITCH_RETRY_MAX) {
-        videoSwitchRetryCount++;
-        console.log("\u672A\u627E\u5230\u89C6\u9891\u64AD\u653E\u5668\uFF0C\u5C1D\u8BD5\u70B9\u51FB\u65E7\u7248\u5207\u6362\u6309\u94AE (\u91CD\u8BD5\u6B21\u6570:" + videoSwitchRetryCount + ")...");
-        logStatus("\u672A\u627E\u5230\u89C6\u9891\u64AD\u653E\u5668\uFF0C\u70B9\u51FB\u65E7\u7248\u5207\u6362\u6309\u94AE (\u91CD\u8BD5\u6B21\u6570:" + videoSwitchRetryCount + ")...");
-        versionSwitch.click();
-        setTimeout(function() {
-          const videoRetry = findVideoPlayer();
-          if (videoRetry !== void 0) {
-            videoSwitchRetryCount = 0;
-            console.log("\u5207\u6362\u65E7\u7248\u540E\u6210\u529F\u627E\u5230\u89C6\u9891\u64AD\u653E\u5668\u3002");
-            logStatus("\u5207\u6362\u5230\u65E7\u7248\u540E\u627E\u5230\u89C6\u9891\uFF0C\u7EE7\u7EED\u64AD\u653E\u3002");
-            next();
-          }
-        }, 1500);
+      if (!currentItem) {
+        gotoNextUnfinished(index);
         return;
       }
-      videoSwitchRetryCount = 0;
-      if (clickMarkAsFinishedButton()) {
-        setTimeout(function() {
-          checkProgressAndMaybeGotoNext();
-        }, 2e3);
+      if (isImageTextChapter(currentItem) || findMarkAsFinishedButton()) {
+        startMarkAsFinishedFlow(index, gotoNextUnfinished);
         return;
       }
       console.log("\u672A\u627E\u5230\u89C6\u9891\u64AD\u653E\u5668\uFF0C\u53EF\u80FD\u662F\u4F5C\u4E1A/\u8BA8\u8BBA/\u56FE\u6587\uFF0C\u8DF3\u8F6C\u4E0B\u4E00\u4E2A\u672A\u5B8C\u6210\u7AE0\u8282\u3002");
@@ -475,7 +569,6 @@ var XuetangXAutoLearn = (() => {
     }, PIE_REFRESH_DELAY_MS);
   }
   function checkProgressAndMaybeGotoNext() {
-    isCheckingProgress = false;
     lists = getAllChapters();
     if (pendingCheckIndex == null) {
       isRefreshingPie = false;

@@ -14,6 +14,5 @@ export const MAX_REPLAY_PER_CHAPTER = 20;
 export const CHECK_INTERVAL_MS = 5000;
 export const PANEL_INIT_DELAY_MS = 2000;
 export const PANEL_POPULATE_DELAY_MS = 3000;
-export const VIDEO_SWITCH_RETRY_MAX = 3;
 export const PIE_REFRESH_DELAY_MS = 5000;
 export const VIDEO_REPLAY_DELAY_MS = 1000;
