@@ -275,8 +275,24 @@ function checkProgressAndMaybeGotoNext() {
         start();
     }, VIDEO_REPLAY_DELAY_MS);
 }
+function tryRedirectToOldVersion() {
+    const switchEl = document.querySelector('span.version-switch');
+    if (switchEl && switchEl.textContent.includes('旧版')) {
+        console.log('检测到新版页面，自动切换到旧版...');
+        logStatus('检测到新版页面，自动切换到旧版...');
+        switchEl.click();
+        return true;
+    }
+    return false;
+}
+
 function main() {
     console.log("油猴脚本已启动，开始加载操作面板...");
+
+    if (tryRedirectToOldVersion()) {
+        return;
+    }
+
     createPanel();
     logStatus("脚本已载入，正在识别未完成的章节...");
     setTimeout(populatePanel, PANEL_POPULATE_DELAY_MS);

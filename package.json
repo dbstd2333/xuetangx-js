@@ -10,5 +10,9 @@
   },
   "devDependencies": {
     "esbuild": "^0.20.0"
+  },
+  "dependencies": {
+    "puppeteer": "^25.1.0",
+    "qrcode-terminal": "^0.12.0"
   }
 }

@@ -874,8 +874,21 @@ var XuetangXAutoLearn = (() => {
       start();
     }, VIDEO_REPLAY_DELAY_MS);
   }
+  function tryRedirectToOldVersion() {
+    const switchEl = document.querySelector("span.version-switch");
+    if (switchEl && switchEl.textContent.includes("\u65E7\u7248")) {
+      console.log("\u68C0\u6D4B\u5230\u65B0\u7248\u9875\u9762\uFF0C\u81EA\u52A8\u5207\u6362\u5230\u65E7\u7248...");
+      logStatus("\u68C0\u6D4B\u5230\u65B0\u7248\u9875\u9762\uFF0C\u81EA\u52A8\u5207\u6362\u5230\u65E7\u7248...");
+      switchEl.click();
+      return true;
+    }
+    return false;
+  }
   function main() {
     console.log("\u6CB9\u7334\u811A\u672C\u5DF2\u542F\u52A8\uFF0C\u5F00\u59CB\u52A0\u8F7D\u64CD\u4F5C\u9762\u677F...");
+    if (tryRedirectToOldVersion()) {
+      return;
+    }
     createPanel();
     logStatus("\u811A\u672C\u5DF2\u8F7D\u5165\uFF0C\u6B63\u5728\u8BC6\u522B\u672A\u5B8C\u6210\u7684\u7AE0\u8282...");
     setTimeout(populatePanel, PANEL_POPULATE_DELAY_MS);
