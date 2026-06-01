@@ -1,9 +1,17 @@
 const { updateChapterSchedule, getLeafInfo } = require('./course');
+const { withRetry } = require('./auth');
 
 const DEFAULT_TEXT = '很有启发性的讨论，让我对这个问题有了更深入的思考。';
 
+function logRetry(attempt, e, waitSec) {
+    console.log(`  [retry] (${e.message})，${waitSec}s 后重试 (${attempt}/3)...`);
+}
+
 async function processDiscussion(client, leafId, classroomId, sign) {
-    const leafInfo = await getLeafInfo(client, classroomId, leafId, sign);
+    const leafInfo = await withRetry(
+        () => getLeafInfo(client, classroomId, leafId, sign),
+        { onRetry: logRetry }
+    );
     const contentInfo = leafInfo?.content_info || {};
     const skuId = leafInfo.sku_id;
     const status = contentInfo.status;
@@ -14,8 +22,11 @@ async function processDiscussion(client, leafId, classroomId, sign) {
     let topicId, toUser;
 
     try {
-        const unitRes = await client.get(
-            `/api/v1/lms/forum/unit/discussion/?product_sign=${sign}&leaf_id=${leafId}&classroom_id=${classroomId}&topic_type=4&channel=xt`
+        const unitRes = await withRetry(
+            () => client.get(
+                `/api/v1/lms/forum/unit/discussion/?product_sign=${sign}&leaf_id=${leafId}&classroom_id=${classroomId}&topic_type=4&channel=xt`
+            ),
+            { onRetry: logRetry }
         );
         const unitData = unitRes.data;
         topicId = unitData?.id;
@@ -50,9 +61,12 @@ async function processDiscussion(client, leafId, classroomId, sign) {
         console.log(`  [debug] 发评论: topicId=${topicId}, toUser=${toUser}`);
 
         try {
-            const res = await client.post(
-                `/api/v1/lms/forum/comment/?classroom_id=${classroomId}&leaf_id=${leafId}`,
-                body
+            const res = await withRetry(
+                () => client.post(
+                    `/api/v1/lms/forum/comment/?classroom_id=${classroomId}&leaf_id=${leafId}`,
+                    body
+                ),
+                { onRetry: logRetry }
             );
             console.log('  [debug] 评论响应:', JSON.stringify(res).slice(0, 300));
 
@@ -67,7 +81,10 @@ async function processDiscussion(client, leafId, classroomId, sign) {
     }
 
     // 更新进度
-    const scheduleRes = await updateChapterSchedule(client, leafId, Number(classroomId), skuId);
+    const scheduleRes = await withRetry(
+        () => updateChapterSchedule(client, leafId, Number(classroomId), skuId),
+        { onRetry: logRetry }
+    );
     const progress = scheduleRes.leaf_schedule;
     if (progress >= 1) {
         console.log(`  ✓ 进度: 100%`);

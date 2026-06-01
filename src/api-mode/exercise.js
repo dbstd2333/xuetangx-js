@@ -1,5 +1,10 @@
 const { updateChapterSchedule } = require('./course');
+const { withRetry } = require('./auth');
 const { askDeepSeek } = require('./deepseek');
+
+function logRetry(attempt, e, waitSec) {
+    console.log(`  [retry] (${e.message})，${waitSec}s 后重试 (${attempt}/3)...`);
+}
 
 /**
  * 获取习题列表
@@ -7,8 +12,11 @@ const { askDeepSeek } = require('./deepseek');
  * 其中 exercise_id = content_info.leaf_type_id, sku_id = leafInfo.sku_id
  */
 async function getExerciseList(client, exerciseId, skuId) {
-    const res = await client.get(
-        `/api/v1/lms/exercise/get_exercise_list/${exerciseId}/${skuId}/`
+    const res = await withRetry(
+        () => client.get(
+            `/api/v1/lms/exercise/get_exercise_list/${exerciseId}/${skuId}/`
+        ),
+        { onRetry: logRetry }
     );
     console.log(`  [debug] getExerciseList(${exerciseId}/${skuId}) status: ${res.status || res.data?.success}`);
     return res.data || {};
@@ -98,14 +106,17 @@ async function processExercise(client, leafId, classroomId, sign, exerciseId, sk
         }
 
         try {
-            const res = await submitProblemAnswer(client, {
-                leafId: Number(leafId),
-                classroomId,
-                exerciseId,
-                problemId,
-                sign,
-                answer,
-            });
+            const res = await withRetry(
+                () => submitProblemAnswer(client, {
+                    leafId: Number(leafId),
+                    classroomId,
+                    exerciseId,
+                    problemId,
+                    sign,
+                    answer,
+                }),
+                { onRetry: logRetry }
+            );
 
             const result = res.data;
             const isRight = result?.is_right || result?.is_correct;
@@ -125,7 +136,10 @@ async function processExercise(client, leafId, classroomId, sign, exerciseId, sk
 
     // 更新进度
     try {
-        const scheduleRes = await updateChapterSchedule(client, leafId, Number(classroomId), skuId);
+        const scheduleRes = await withRetry(
+            () => updateChapterSchedule(client, leafId, Number(classroomId), skuId),
+            { onRetry: logRetry }
+        );
         const progress = scheduleRes.leaf_schedule;
         console.log(`  进度: ${(progress * 100).toFixed(0)}%`);
     } catch (e) {

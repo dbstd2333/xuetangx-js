@@ -75,16 +75,8 @@ async function wxQRLogin() {
             try { msg = JSON.parse(typeof event.data === 'string' ? event.data : event.data.toString()); } catch { return; }
 
             if (msg.op === 'requestlogin') {
-                console.log('\n正在下载二维码图片...');
-
-                try {
-                    const qrPath = await downloadQRImage(msg.ticket);
-                    console.log('\n请用微信扫描以下二维码图片登录：');
-                    console.log(`  ${qrPath}\n`);
-                } catch {
-                    console.log('\n无法下载二维码图片，请手动打开链接扫描：');
-                    console.log(`  ${msg.ticket}\n`);
-                }
+                console.log('\n请用微信扫描以下二维码登录：');
+                console.log(`  ${msg.ticket}\n`);
 
                 console.log(`有效期 ${msg.expire_seconds} 秒，超时自动刷新。\n`);
 

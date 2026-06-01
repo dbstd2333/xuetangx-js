@@ -11,6 +11,32 @@ function parseCookies(cookieStr) {
     return map;
 }
 
+function parseRetryAfter(text) {
+    const m = (text || '').match(/Expected available in\s+(\d+(?:\.\d+)?)\s*seconds?/i);
+    if (!m) return null;
+    const sec = parseFloat(m[1]);
+    return Number.isFinite(sec) && sec >= 0 ? sec : null;
+}
+
+async function withRetry(fn, opts = {}) {
+    const { maxRetries = 3, baseDelay = 5, onRetry, label = '' } = opts;
+    let lastErr;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (e) {
+            lastErr = e;
+            if (attempt >= maxRetries) break;
+            const waitSec = e && e.retryAfter != null
+                ? Math.ceil(e.retryAfter + 2)
+                : baseDelay * attempt;
+            if (onRetry) onRetry(attempt, e, waitSec);
+            await new Promise(r => setTimeout(r, waitSec * 1000));
+        }
+    }
+    throw lastErr;
+}
+
 function createApiClient(sessionid, csrftoken) {
     const cookie = `sessionid=${sessionid}; csrftoken=${csrftoken}`;
     const headers = {
@@ -31,11 +57,13 @@ function createApiClient(sessionid, csrftoken) {
         const resp = await fetch(url, opts);
         const text = await resp.text();
 
-        // 每次请求后休息 2s，避免触发 429 限速
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
         if (!resp.ok) {
-            throw new Error(`HTTP ${resp.status} ${path}: ${text.slice(0, 200)}`);
+            const err = new Error(`HTTP ${resp.status} ${path}: ${text.slice(0, 200)}`);
+            if (resp.status === 429) {
+                const retryAfter = parseRetryAfter(text);
+                if (retryAfter != null) err.retryAfter = retryAfter;
+            }
+            throw err;
         }
         try {
             return JSON.parse(text);
@@ -63,4 +91,4 @@ async function checkLogin(client) {
     };
 }
 
-module.exports = { parseCookies, createApiClient, checkLogin };
+module.exports = { parseCookies, parseRetryAfter, withRetry, createApiClient, checkLogin };

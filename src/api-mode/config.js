@@ -9,7 +9,7 @@ const LEAF_TYPE = {
     EXERCISE: 6,
 };
 
-const HEARTBEAT_INTERVAL = 15;
+const HEARTBEAT_INTERVAL = 30;
 const HEARTBEAT_SPEED = 2;
 
 const SKIP_LEAF_TYPES = new Set([

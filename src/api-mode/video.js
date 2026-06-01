@@ -72,7 +72,7 @@ async function simulatePlayback(client, opts) {
         }
 
         // Throttle to avoid rate limit
-        await sleep(2000);
+        await sleep(5000);
     }
 
     // 3) videoend event

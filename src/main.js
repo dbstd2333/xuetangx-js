@@ -55,7 +55,7 @@ export function populatePanel() {
         } else {
             startButton.disabled = false;
         }
-        startButton.onclick = function() {
+        startButton.onclick = function () {
             const selectedValue = startSelect.value;
             const selectedIndex = parseInt(selectedValue, 10);
             if (!isNaN(selectedIndex) && selectedIndex >= 0) {
@@ -209,7 +209,7 @@ function switchChapterForPieRefresh() {
     console.log("为刷新饼图，临时切到章节 #" + jumpIndex);
     logStatus("为刷新饼图，暂时切到章节 #" + jumpIndex + "。");
 
-    setTimeout(function() {
+    setTimeout(function () {
         checkProgressAndMaybeGotoNext();
     }, PIE_REFRESH_DELAY_MS);
 }
@@ -253,7 +253,7 @@ function checkProgressAndMaybeGotoNext() {
     if (times >= MAX_REPLAY_PER_CHAPTER) {
         console.log("本章节重播超过 " + MAX_REPLAY_PER_CHAPTER + " 次仍未满，跳到下一个未完成章节。");
         logStatus("章节 #" + idx + " 看了 " + MAX_REPLAY_PER_CHAPTER +
-                  " 次饼图仍未满，可能需要你手动答题/操作，已自动跳过这一节。");
+            " 次饼图仍未满，可能需要你手动答题/操作，已自动跳过这一节。");
         isRefreshingPie = false;
         pendingCheckIndex = null;
         gotoNextUnfinished(idx);
@@ -266,7 +266,7 @@ function checkProgressAndMaybeGotoNext() {
 
     currentItem.click();
 
-    setTimeout(function() {
+    setTimeout(function () {
         const v = findVideoPlayer();
         if (v) {
             v.currentTime = 0;
